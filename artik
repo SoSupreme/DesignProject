@@ -1,0 +1,89 @@
+#include <arpa/inet.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include "wiringARTIK.h"
+#define BUFSIZE 1024
+
+#define DIGITAL_PIN1 121
+#define DIGITAL_PIN1 122
+#define DIGITAL_PIN1 123
+#define DIGITAL_PIN1 124
+int setup() {
+	if (!digitalPinMode(DIGITAL_PIN1, INPUT)) return -1;
+	if (!digitalPinMode(DIGITAL_PIN2, INPUT)) return -1;
+	if (!digitalPinMode(DIGITAL_PIN3, INPUT)) return -1;
+	if (!digitalPinMode(DIGITAL_PIN4, INPUT)) return -1;
+}
+void error_handling(char *message);
+int main(int argc, char **argv)
+{
+	int serv_sock;                      // 서버소켓
+	int clnt_sock;                      // 클라이언트 소켓
+	char message[100];              // 메시지 저장 변수
+	int str_len;                        // 메시지 길이
+	int SenVal1, SenVal2, SenVal3, SenVal4;	// 센서로 받을 데이터 값
+	struct sockaddr_in serv_addr;
+	struct sockaddr_in clnt_addr;       // 소켓 통신에 필요한 구조체 선언
+	int clnt_addr_size;
+
+	if (argc != 2) {
+	printf("PORT를 입력하세요 : &s <port>\n", argv[0]);   // 포트를 입력하지 않은 경우 경고 메시지
+	exit(1);
+	}
+	if (setup() == -1) exit(1);	// 센서 값을 못불러오면 exit
+
+	SenVal1 = digitalRead(DIGITAL_PIN1);
+	SenVal2 = digitalRead(DIGITAL_PIN2);
+	SenVal3 = digitalRead(DIGITAL_PIN3);
+	SenVal4 = digitalRead(DIGITAL_PIN4);
+
+	if (SenVal1 == 1 || SenVal3 == 1) { // 1번 혹은 3번이  비어 있을 시 a를 보낸다.
+	message[0] = 'a';
+	}
+	else if (SenVal2 == 1 || SenVal4 == 1) { // 1번 혹은 3번이  비어 있을 시 a를 보낸다.
+	message[0] = 'b';
+	}
+
+	printf("go to %s\n", message[0]);	// 가야할 구역 표시
+
+	serv_sock = socket(PF_INET, SOCK_STREAM, 0);    /* 서버 소켓 생성 */
+	if (serv_sock == -1)
+	error_handling("socket() error");
+	memset(&serv_addr, 0, sizeof(serv_addr));
+	serv_addr.sin_family = AF_INET;
+	serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+	serv_addr.sin_port = htons(atoi(argv[1]));
+
+	/* 소켓에 주소 할당 */
+	if (bind(serv_sock, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) == -1)
+	error_handling("bind() error");
+	if (listen(serv_sock, 5) == -1)  /* 연결 요청 대기 상태로 진입 */
+
+	error_handling("listen() error");
+	printf("Watinig for Clinet...\n");      // 연결 요청 대기상태 진입 성공
+	clnt_addr_size = sizeof(clnt_addr);
+
+	/* 연결 요청 수락 */
+	clnt_sock = accept(serv_sock, (struct sockaddr*)&clnt_addr, &clnt_addr_size);
+	if (clnt_sock == -1)
+	error_handling("accept() error");
+
+	printf("Connected to Clinet...\n");     // 클라이언트와 연결 성공
+
+	/* 데이터 수신 및 전송 */
+	sleep(3);
+
+	int len = strlen(message);
+	write(clnt_sock, message, len);                     // 변환 메시지 클라이언트 전송
+	printf("send : %s\n", message);
+	close(clnt_sock);       // 연결 종료
+
+	printf("Disconnected!!\n");     // 클라이언트와 연결 해제
+	return 0;
+}
+void error_handling(char *message)      // 에러 핸들링 용 함수
+{
+	fputs(message, stderr);
+	fputc('\n', stderr);
+	exit(1);
+}
